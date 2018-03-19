@@ -1,0 +1,44 @@
+---
+title: "VAAC de Washington"
+author: "Natalia Gutierrez Navarro"
+date: '`r format(Sys.Date(),"%e de %B, %Y")`'
+output:
+  pdf_document
+---
+
+# Descripció
+
+![](./volcano2.jpg)
+
+Descripció
+Imatge
+Context
+
+# Contingut
+
+Camps.
+Periode de les dades
+Com s'han recollit
+
+# Agraïments
+
+Propietari de les dades.
+Cites.
+
+# Motivació
+
+Pq és interessant el dataset? Quines preguntes li agradaria respondre la comunitat?
+
+# Llicència
+
+Escollir
+
+# Codi font generador
+
+Descripció del codi.
+
+# Dataset
+
+Fitxer.
+
+
