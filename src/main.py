@@ -1,8 +1,8 @@
-from vaacrawler import VAACrawler
+from vaacscraper import VAACScraper
 
 output_file = "dataset.csv"
 
 
-crawler = VAACrawler(idate,edate);
-crawler.crawl();
-crawler.write_csv(output_file);
+scraper = VAACScraper(idate,edate);
+scraper.scraping();
+scraper.write_csv(output_file);
