@@ -9,5 +9,6 @@ edate=datetime.utcnow()
 idate.isoformat(' ')
 edate.isoformat(' ')
 scraper = VAACScraper(idate,edate);
-scraper.scraping();
-scraper.write_csv(output_file);
+html=scraper.download_html(scraper.url)
+#scraper.scraping();
+#scraper.write_csv(output_file);
