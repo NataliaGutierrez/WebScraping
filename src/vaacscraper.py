@@ -4,6 +4,8 @@ from datetime import datetime
 from time import strptime
 from time import mktime
 from bs4 import BeautifulSoup
+import re
+import os.path
 
 class VAACScraper():
     """Documentation"""
@@ -12,17 +14,25 @@ class VAACScraper():
         	# Si no tenim etime com input, considerar data actual
         self.idate = idate
         self.edate = edate
-        self.domain = "http://www.ssd.noaa.gov/"
-        self.url = self.domain + "VAAC/messages.html"
+        self.domain = "http://www.ssd.noaa.gov"
+        self.url = self.domain + "/VAAC/messages.html"
         self.useragent = useragent
         self.rp = urllib.robotparser.RobotFileParser()
-        self.rp.set_url(self.domain + "robots.txt")
+        self.rp.set_url(self.domain + "/robots.txt")
         self.rp.read()
         self.volcanoes = []
     def __checking_useragent(self, url):
         return self.rp.can_fetch(self.useragent, url)
     
-    def download_html(self, url, num_retries=2):
+    def __absolute_ref( self, relativelink ):
+        # Starting by / character, it is relative to website
+        if (relativelink[0] == '/'):
+            return self.domain + relativelink
+        # otherwise, it is relative to local root
+        else:
+            return os.path.dirname(self.url) + '/' + relativelink
+        
+    def __download_html(self, url, num_retries=2):
         headers = {'User-agent': self.useragent}
         request = urllib.request.Request(url, headers=headers)
         try:
@@ -35,8 +45,21 @@ class VAACScraper():
                 if hasattr(e, 'code') and 500 <= e.code < 600:
                     # recursively retry 5xx HTTP errors
                     return self.__download_html(url, num_retries-1)
+        self.url = url
         return html
-
+    
+    def __check_advisories_section( self, title ):
+        name = title.lower()
+        
+        if len(self.volcanoes)>0:
+            for volcano in self.volcanoes:
+                if (volcano.lower() in name):
+                    return True
+            return False
+        if ('user message' in name)|('test ' in name):
+            return False
+        return True
+    
     def __crawling_links(self, html):
         # En la pagina principal dels VAAC, hem de trobar els links pels anys que volem
         years=range(self.edate.year,self.idate.year-1,-1)
@@ -49,33 +72,53 @@ class VAACScraper():
             tmp = soup.find(name='a',text=str(year))
             if tmp:
                 # TODO: path absoluto, comprobar relativo a website o root local(self.url)
-                ylinks.append(tmp.get('href'))
+                
+                ylinks.append(self.__absolute_ref(tmp.get('href')))
             else:
                 print('there is no link for year %d',year)
                 
     
-        # webpage for current year has different format. 
+        mylinks = []
+        # THe general loop will be from first element, set initial index
+        fidx = 0
+        # Check if webpage for first year has different format.
         if datetime.utcnow().year == years[0]:
             # Search in special format
-            url = self.domain + ylinks[idx]
-            html = self.__download_html(url)
+            html = self.__download_html(ylinks[0])
+            soup = BeautifulSoup(html, "lxml")
             
-            # TODO: completar a partir del usado en el loop.
+            token = soup.find(name="strong", text=re.compile("^Advisories Last Updated"))
             
-            # The general loop will be from second element, set initial index
-            fidx = 1
-        else:
-            # THe general loop will be from first element, set initial index
-            fidx = 0
-        
-        mylinks = []
+            valid = False
+            # TODO: no funciona los next_siblings
+            for sibling in token.next_siblings:
+                print(sibling)
+                if (sibling.name=='dt'):
+                    # It there is a term list as sibling, it is in odd format. So 
+                    # the general loop will be from second year.
+                    fidx = 1
+                    title = sibling.find('em').get_text()
+                    # If section is wrong section, next sdvisry record will 
+                    # not be read. Also filter by volcano if there is input 
+                    # list
+                    valid = self.__check_advisories_section( title )
+                    
+                if ((sibling.name=='dd') & valid): # Child is advisory record
+                    tmp = sibling.find('em').get_text() + sibling.find('a').get_text()
+                    mydate=datetime.fromtimestamp(mktime(strptime(tmp,"%d %b %Y - %H%M UTC")))
+                    # Filter by date
+                    if ((mydate>self.idate) & (mydate<self.edate)):
+                        mylinks.append(self.__absolute_ref(sibling.find('a').get('href')))
+                    if (mydate<self.idate):
+                        valid = False;
+        # FUNCIONA
         for idx in range(fidx,len(ylinks),1):
-            # TODO: ir actualizando self.url con el link donde estoy
-            url = self.domain + ylinks[idx]
-            root = []
+            
             # No hace falta root, conseguirlo desde self.url que siempre estara actualizado.
             # POner update del self.url primera linea de download_html. 
-            html = self.__download_html(url)
+            html = self.__download_html(ylinks[idx])
+            soup = BeautifulSoup(html, "lxml")
+            # Regular format, the data is in a table with columns(cells).
             tags = soup.find_all("table")
             # In last table there are the data
             cols = tags[-1].find_all('td',attrs={"valign": "top"})
@@ -89,36 +132,16 @@ class VAACScraper():
                         # list
                         valid = self.__check_advisories_section( title )
                         
-                    if (child.name=='dd'&valid): # Child is advisory record
+                    if ((child.name=='dd') & valid): # Child is advisory record
                         tmp = child.find('em').get_text() + child.find('a').get_text()
                         mydate=datetime.fromtimestamp(mktime(strptime(tmp,"%d %b %Y - %H%M UTC")))
                         # Filter by date
-                        if (mydate>self.idate & mydate<self.edate):
-                             mylinks.append(self.__absolute_ref( child.find('a').get('href'), root ))
+                        if ((mydate>self.idate) & (mydate<self.edate)):
+                            mylinks.append(self.__absolute_ref(child.find('a').get('href')))
+                        if (mydate<self.idate):
+                            valid = False;
                              
-
-        # Del html descarregat, trobar els links d'on descarregar els volcanic 
-        # ash advisories.
-        # Només descarregar els informes dins de l'interval de temps (self.idate,self.edate)
         return mylinks
-    def __absolute_ref( relativelink, root ):
-        # Starting by / character, it is relative to website
-        if (relativelink[0] == '/'):
-            return self.domain + relativelink[1:]
-        # otherwise, it is relative to local root
-        else:
-            return root + relativelink
-    def __check_advisories_section( title ):
-        name = title.lower()
-        
-        if len(self.volcanoes)>0:
-            for volcano in self.volcanoes:
-                if (volcano.lower() in name):
-                    return True
-            return False
-        if ('user message' in name)|('test ' in name):
-            return False
-        return True
     
     def __scraping_advisory(self,html):
         # Extreure les dades interessants. Insertar registre en dataframe
@@ -128,7 +151,11 @@ class VAACScraper():
             html = self.__download_html(self.url)
             links = self.__crawling_links(html)
             for link in links:
-                print(link)
+                html = self.__download_html(link)
+                soup = BeautifulSoup(html,"lxml")
+                print(soup.find(name="pre").text)
+
+                
 
     '''
     		# Comprobar amb el robots.txt si el meu user agent no esta bloquejat
