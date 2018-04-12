@@ -90,7 +90,39 @@ class VAACScraper():
             token = soup.find(name="strong", text=re.compile("^Advisories Last Updated"))
             
             valid = False
+            # Find term lists as siblings
+            sectnodes = token.find_next_siblings("dt")
+            # If there is any, html is in odd format. So the general loop will 
+            # be from second year
+            if (len(sectnodes)>1):
+                fidx = 1
+                
+            for section in sectnodes:
+                title = section.find('em').get_text()
+                    # If section is wrong section, advisories in this section will 
+                    # not be read. Also filter by volcano if there is input 
+                    # list
+                if (self.__check_advisories_section( title ) == False):
+                    continue
+                
+                for sibling in section.next_siblings:
+                    if getattr(sibling, 'name', None) == 'dt':
+                        # It is next section already
+                        break
+                    if getattr(sibling, 'name', None) == 'dd':
+                        tmp = sibling.find('em').get_text() + sibling.find('a').get_text()
+                        mydate=datetime.fromtimestamp(mktime(strptime(tmp,"%d %b %Y - %H%M UTC")))
+                        # Filter by date
+                        if (mydate>self.edate):
+                            continue
+                        if (mydate<self.idate):
+                            break
+                        
+                        mylinks.append(self.__absolute_ref(sibling.find('a').get('href')))
+                    
             # TODO: no funciona los next_siblings
+            # https://stackoverflow.com/questions/2507301/use-beautifulsoup-to-extract-sibling-nodes-between-two-nodes
+'''
             for sibling in token.next_siblings:
                 print(sibling)
                 if (sibling.name=='dt'):
@@ -111,7 +143,8 @@ class VAACScraper():
                         mylinks.append(self.__absolute_ref(sibling.find('a').get('href')))
                     if (mydate<self.idate):
                         valid = False;
-        # FUNCIONA
+'''
+        # Crawling for rest of years
         for idx in range(fidx,len(ylinks),1):
             
             # No hace falta root, conseguirlo desde self.url que siempre estara actualizado.
@@ -145,7 +178,10 @@ class VAACScraper():
     
     def __scraping_advisory(self,html):
         # Extreure les dades interessants. Insertar registre en dataframe
-        a=1
+        soup = BeautifulSoup(html,"lxml")
+        text = soup.find(name="pre").text
+                        
+        
     def scraping(self):
         if self.__checking_useragent(self.url):
             html = self.__download_html(self.url)
