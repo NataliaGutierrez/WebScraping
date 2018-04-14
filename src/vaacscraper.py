@@ -6,6 +6,7 @@ from time import mktime
 from bs4 import BeautifulSoup
 import re
 import os.path
+import advisory
 
 class VAACScraper():
     """Documentation"""
@@ -153,12 +154,16 @@ class VAACScraper():
                              
         return mylinks
     
-    def __scraping_advisory(self,html):
-        # Extreure les dades interessants. Insertar registre en dataframe
+    def __scraping_advisory(self,html,link):
+        '''
+        Scrape required information from single advisory webpage.
+        Add the record in dataframe
+        '''
         soup = BeautifulSoup(html,"lxml")
         text = soup.find(name="pre").text
-                        
-        
+        record = advisory.parse( text, html )
+        if (record):
+            
     def scraping(self):
         if self.__checking_useragent(self.url):
             html = self.__download_html(self.url)
