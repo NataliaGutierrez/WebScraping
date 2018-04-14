@@ -122,9 +122,7 @@ class VAACScraper():
                             break
                         
                         mylinks.append(self.__absolute_ref(sibling.find('a').get('href')))
-
-            # TODO: no funciona los next_siblings
-            # https://stackoverflow.com/questions/2507301/use-beautifulsoup-to-extract-sibling-nodes-between-two-nodes
+        # TODO: rediseñar
         # Crawling for rest of years
         for idx in range(fidx,len(ylinks),1):
             # No hace falta root, conseguirlo desde self.url que siempre estara actualizado.
@@ -184,6 +182,7 @@ class VAACScraper():
             print('WARNING: There is no record for volcano and/or dates provided. THERE IS NOT OUTPUT')
         data = pd.DataFrame(self.row_list,columns=advisory.fields())
         # Escriure fitxer
-        data.to_csv(filename)
+        data.to_csv(filename,index=False)
+        # for append, we need no save column names
         #data.to_csv(filename,mode='a')
         

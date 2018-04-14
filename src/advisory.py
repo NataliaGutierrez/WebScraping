@@ -1,17 +1,20 @@
 """
 Aquest mòdul s'encarrega de contenir el format dels avisos de cendra volcànica
-(Volcanic Ash Advisory - VAA). Així, proveeix dels recursos necessaris per extreure 
-totes les dades que formen una mostra a partir d'un text en format VAA. 
-
-
-    - Advisory date: YYYYMMDDHHMM
-    - Volcano name
-    - Volcano ID
-    - Obs. date
-    - Obs cloud, low altitude : FL (flight level) or SFC/UNK(surface)
-    - Obs cloud, high altitude : FL
-    - Obs cloud, polygon : sequence points lat1lon1lat2lon2lat3lon3...
-    - Forecast 1 (+6H), date
+(Volcanic Ash Advisory - VAA). Proveeix dels recursos necessaris per extreure 
+totes les dades que formen una mostra a partir d'un text en format VAA.
+* fields: construeix una llista amb els noms de tots els camps els valors dels 
+  quals constitueixen una mostra.
+* parse: forma una llista amb els valors de la mostra que construïm a partir 
+  d'un VAA. Aquesta llista està formada per:
+    - Data del avis: YYYYMMDDHHMM
+    - Nom del volcà
+    - Identificador del volcà
+    - Data de l'observació
+    - Altitud més baixa de l'observació, en FL (flight level) o SFC/UNK(superficie)
+    - Altitud més alta de l'observació en FL
+    - Contorn del núvol de cendra observat, és un poligon descrit per una seqüencia
+        de punts lat1lon1lat2lon2lat3lon3...
+    - Data pel primer forecast 1 (a 6 hores vista)
     - Forecast 1, low altitude: it can be 'None'
     - Forecast 1, high altitude
     - Forecast 1, cloud polygon
