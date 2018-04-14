@@ -38,9 +38,13 @@ def parse(text, link):
     # Check if we want this advisory, i.e. there is observed cloud
     token = re.findall("OBS VA CLD.*$",text,re.MULTILINE)
     if not(token):#there is no observation
+        print("WARNING: there is no observation in advisory '"+
+                  link +"'. It is discarded\n")
         return []
         # Observation is not identifiable
     if re.match("^.*NOT IDENTIFIABLE.*$",token[0]):
+        print("WARNING: cloud not identifiable in advisory '"+
+                  link +"'. It is discarded\n")
         return []
         # There is not information about observation (empty OBS VA CLD)
     token=re.split(r'\W+', token[0])
@@ -99,73 +103,88 @@ def parse(text, link):
               link + "'. It is set as 'NA'\n")
         advisory.append('NA')
     # Observed cloud.
-    # Expected: "OBS VA CLD: FLXX/FLXX lat1 lon1 - lat2 lon2 - lat3 lon3...
     # We will extract: low alt, high alt, cloud polygon
-    token = re.findall("OBS VA CLD.*$",text,re.MULTILINE)
-    if not(token):
+    # Expected: "OBS VA CLD: FLXX/FLXX lat1 lon1 - lat2 lon2 - lat3 lon3...
+    # And it can be more than one line
+    lines = text.splitlines()
+    for idx in range(0,len(lines),1):
+        if lines[idx].find("OBS VA CLD",0,12)>-1:
+            break
+    i=1
+    while lines[idx+i] != '':
+        lines[idx] += ' ' + lines[idx+i]
+        i+=1
+    
+    token=re.split(r'\W+', lines[idx])
+    # At least cloud needs to be defined by 3 points
+    if len(token) < 11:
         print("WARNING: observation cloud is missing in advisory '" + 
-              link + "'. It is set as 'NA'\n")
-        advisory.extend(['NA'] * 3)
+          link + "'. It will be discarded\n")
+        return []
     else:
-        token=re.split(r'\W+', token[0])
-        # At least cloud needs to be defined by 3 points
-        if len(token) < 11:
-            print("WARNING: observation cloud is missing in advisory '" + 
-              link + "'. It is set as 'NA'\n")
-            advisory.extend(['NA'] * 3)
-        else:
-            advisory.append( token[3] )
-            advisory.append( token[4] )
-            polygon=''
-            size = len(token)
-            if (size%2 ==0):
-                size -= 1
-            for idx in range(5,size,2):
-                if re.match("[S,N]*[0-9]",token[idx]):
-                    polygon += token[idx]+token[idx+1]
-                else:
-                    break
-            if len(polygon)==0:
-                polygon='NA'
-            advisory.append(polygon)
+        advisory.append( token[3] )
+        advisory.append( token[4] )
+        polygon=''
+        size = len(token)
+        if (size%2 ==0):
+            size -= 1
+        for idx in range(5,size,2):
+            if re.match("[S,N]*[0-9]",token[idx]):
+                polygon += token[idx]+token[idx+1]
+            else:
+                break
+        if len(polygon)==0:
+            polygon='NA'
+        advisory.append(polygon)
     # Forecasts
     # Expected: "FCST VA CLD +xHR: DD/HHMMZ FLXX/FLXX lat1 lon1 - lat2 lon2 - lat3 lon3...
+    # It can be several lines in text
     # We will extract for each forecast: date, low alt, high alt, cloud polygon
-    patterns=["FCST VA CLD \+6HR.*$","FCST VA CLD \+12HR.*$","FCST VA CLD \+18HR.*$"]
-    for idx in range(0,3,1):
-        token = re.findall(patterns[idx],text,re.MULTILINE)
-        if not(token): # There is no FCST 
+    patterns=["FCST VA CLD +6HR","FCST VA CLD +12HR","FCST VA CLD +18HR"]
+    for pidx in range(0,3,1):
+        lines = text.splitlines()
+        found = False
+        for idx in range(0,len(lines),1):
+            if lines[idx].find(patterns[pidx],0,20)>-1:
+                found = True
+                break
+        if not found:# There is no FCST
             advisory.extend(['None'] * 4)
             continue
         
-        token2=re.split(r'\W+', token[0])
-        if (len(token2) < 5):# FCST is empty
+        i=1
+        while lines[idx+i] != '':
+            lines[idx] += ' ' + lines[idx+i]
+            i+=1
+            
+        token=re.split(r'\W+', lines[idx])
+        if (len(token) < 5):# FCST is empty
             advisory.extend(['None'] * 4)
             continue
         # Parse forecast date
-        if (not(token2[4].isdigit()))|(not(token2[5][:-1].isdigit())):
+        if (not(token[4].isdigit()))|(not(token[5][:-1].isdigit())):
             advisory.append('NA')
         else:
-            advisory.append(yearmonth + token2[4] + token2[5][:-1])
+            advisory.append(yearmonth + token[4] + token[5][:-1])
         # Parse forecast cloud
-        if ((re.match("^.*NO VA EXP.*$",token[0])) is not None)|((re.match("^.*NO ASH EXP.*$",token[0])) is not None):
+        if ((re.match("^.*NO VA EXP.*$",lines[idx])) is not None)|((re.match("^.*NO ASH EXP.*$",lines[idx])) is not None):
             advisory.extend(['None'] * 2)
             advisory.append('NO ASH')
         else:
             # At least cloud needs to be defined by 3 points
-            if len(token2) < 14:
+            if len(token) < 14:
                 advisory.extend(['None'] * 3)
             else:
-                advisory.append( token2[6] )
-                advisory.append( token2[7] )
+                advisory.append( token[6] )
+                advisory.append( token[7] )
                 polygon=''
-                size = len(token2)
+                size = len(token)
                 if (size%2 ==1):
                     size -= 1
                 for idx in range(8,size,2):
                     # Check the list stars with latitude coordinate
-                    if re.match("[S,N]*[0-9]",token2[idx]):
-                        polygon += token2[idx]+token2[idx+1]
+                    if re.match("[S,N]*[0-9]",token[idx]):
+                        polygon += token[idx]+token[idx+1]
                     else:
                         break
                 if len(polygon)==0:

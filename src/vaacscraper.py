@@ -6,6 +6,7 @@ from time import mktime
 from bs4 import BeautifulSoup
 import re
 import os.path
+import pandas as pd
 import advisory
 
 class VAACScraper():
@@ -22,6 +23,7 @@ class VAACScraper():
         self.rp.set_url(self.domain + "/robots.txt")
         self.rp.read()
         self.volcanoes = []
+        self.row_list=[]
     def __checking_useragent(self, url):
         return self.rp.can_fetch(self.useragent, url)
     
@@ -154,15 +156,18 @@ class VAACScraper():
                              
         return mylinks
     
-    def __scraping_advisory(self,html,link):
+    def __scraping_advisory(self,html):
         '''
         Scrape required information from single advisory webpage.
         Add the record in dataframe
         '''
+        #print(self.url\n)
+        #print(html)
         soup = BeautifulSoup(html,"lxml")
         text = soup.find(name="pre").text
-        record = advisory.parse( text, html )
-        if (record):
+        row = advisory.parse( text, self.url )
+        if (row):
+            self.row_list.append(row)
             
     def scraping(self):
         if self.__checking_useragent(self.url):
@@ -170,25 +175,15 @@ class VAACScraper():
             links = self.__crawling_links(html)
             for link in links:
                 html = self.__download_html(link)
-                soup = BeautifulSoup(html,"lxml")
-                print(soup.find(name="pre").text)
-
+                self.__scraping_advisory(html)
                 
-
-    '''
-    		# Comprobar amb el robots.txt si el meu user agent no esta bloquejat
-    		self.__checking_useragent();
-    
-    		# descarregar archive webpage
-    		html = self.__download_html(self.url)
-    		# Trobar els links dels advisories
-    		links = self.__crawling_links(html)
-    		# Extreure les dades de cada advisory
-    		for url in links:
-    			html = self.__download_html(url)
-    			self.__scraping_advisory(html);
-    '''				
+        return self.row_list
     
     def write_csv(self, filename):
+        if not self.row_list:
+            print('WARNING: There is no record for volcano and/or dates provided. THERE IS NOT OUTPUT')
+        data = pd.DataFrame(self.row_list,columns=advisory.fields())
         # Escriure fitxer
-        a=1
+        data.to_csv(filename)
+        #data.to_csv(filename,mode='a')
+        
