@@ -1,41 +1,21 @@
 """
-Aquest mòdul s'encarrega de contenir el format dels avisos de cendra volcànica
-(Volcanic Ash Advisory - VAA). Proveeix dels recursos necessaris per extreure 
+Aquest modul s'encarrega de contenir el format dels avisos de cendra volcanica
+(Volcanic Ash Advisory - VAA). Proveeix dels recursos necessaris per extreure
 totes les dades que formen una mostra a partir d'un text en format VAA.
-* fields: construeix una llista amb els noms de tots els camps els valors dels 
+* fields: construeix una llista amb els noms de tots els camps els valors dels
   quals constitueixen una mostra.
-* parse: forma una llista amb els valors de la mostra que construïm a partir 
-  d'un VAA. Aquesta llista està formada per:
-    - Data del avis: YYYYMMDDHHMM
-    - Nom del volcà
-    - Identificador del volcà
-    - Data de l'observació
-    - Altitud més baixa de l'observació, en FL (flight level) o SFC/UNK(superficie)
-    - Altitud més alta de l'observació en FL
-    - Contorn del núvol de cendra observat, és un poligon descrit per una seqüencia
-        de punts lat1lon1lat2lon2lat3lon3...
-    - Data pel primer forecast 1 (a 6 hores vista)
-    - Altitud més baixa del forecast 1
-    - ALtitud més alta del forecast 1
-    - Contorn del núvol de cendra del forecast 1
-    - Data pel primer forecast 2 (a 12 hores vista)
-    - Altitud més baixa del forecast 2
-    - ALtitud més alta del forecast 2
-    - Contorn del núvol de cendra del forecast 2
-    - Data pel primer forecast 3 (a 18 hores vista)
-    - Altitud més baixa del forecast 3
-    - ALtitud més alta del forecast 3
-    - Contorn del núvol de cendra del forecast 3
-    
-    Consideracions:
-    Aquest mètode retornarà una mostra si el VAA conté observació i és 
-    identificable des del satèl.lit; en altre cas, retornarà [].
-    Si algun dels paràmetres no es troben en el format esperat i per tant no és 
-    poden extreure, el seu valor serà NA. 
-    En el cas de les prediccions, es contempla el cas de que sigui que no 
-    s'espera cendra ("NO ASH EXPECTED"), i si falta informació pot ser que 
-    sigui perque simplement no hi ha, llavors els atributs seran 'None'  
+* parse: forma una llista amb els valors de la mostra que construim a partir
+  d'un VAA.
+  Consideracions: aquest metode retornara una mostra si el VAA conte observacio
+  i es identificable del del satel.lit; en altre cas, retornara []-
+  Si algun dels parametres no es troben en el format esperat i per tant no es poden
+  extreure, el seu valor es NA.
+  En el cas de les prediccions, es contempla el cas de que sigui que no s'espera
+  cendra ("NO ASH EXPECTED"), i si falta informacio pot ser que sigui perque simplement
+  no hi ha, llavors els atributs seran 'None'
+     
 """
+
 import re
 
 def fields():
@@ -110,6 +90,8 @@ def parse(text, link):
         token = re.findall("[0-9]+",token[0])
         if (len(token)==2):
             advisory.append(yearmonth + token[0] + token[1])
+        else:
+            advisory.append('NA')
     else:
         print("WARNING: observation date is missing in advisory '" + 
               link + "'. It is set as 'NA'\n")
