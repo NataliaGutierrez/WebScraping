@@ -1,6 +1,7 @@
 import urllib
 import urllib.robotparser
 from datetime import datetime
+import time
 from time import strptime
 from time import mktime
 from bs4 import BeautifulSoup
@@ -8,6 +9,7 @@ import re
 import os.path
 import pandas as pd
 import advisory
+
 
 class VAACScraper():
     """Documentation"""
@@ -18,11 +20,17 @@ class VAACScraper():
         self.domain = "http://www.ssd.noaa.gov/"
         self.url = []
         self.useragent = useragent
-        # Robot parsed
+        # Robot parser
         self.rp = urllib.robotparser.RobotFileParser()
         self.rp.set_url(self.domain + "robots.txt")
         self.rp.read()
+        # If required, set a delay between crawlings
+        self.crawl_delay = self.rp.crawl_delay(useragent)
+        self.last_access = []
         
+        if not self.crawl_delay:
+            self.crawl_delay = 0
+            
         # Set list of volcanoes required. If is not any, all will be taken into
         # account.
         self.volcanoes = []
@@ -41,10 +49,27 @@ class VAACScraper():
         else:
             return os.path.dirname(self.url) + '/' + relativelink
         
+    def __wait(self):
+        if self.crawl_delay == 0:
+            return
+        
+        sleep_secs = 0
+        if self.last_access is not None:
+            sleep_secs = self.crawl_delay - (datetime.datetime.now() -
+                                             self.last_access).seconds
+        if sleep_secs > 0:
+            # domain has been accessed recently so need to sleep
+            time.sleep(sleep_secs)
+        # update the last accessed time
+        self.last_access = datetime.datetime.now()
+        
     def __download_html(self, url, num_retries=2):
         if not self.__checking_useragent(url):
             print("WARNING: Blocked by robots.txt")
             return []
+        
+        self.__wait();
+              
         headers = {'User-agent': self.useragent}
         request = urllib.request.Request(url, headers=headers)
         try:
