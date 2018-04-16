@@ -15,17 +15,26 @@ totes les dades que formen una mostra a partir d'un text en format VAA.
     - Contorn del núvol de cendra observat, és un poligon descrit per una seqüencia
         de punts lat1lon1lat2lon2lat3lon3...
     - Data pel primer forecast 1 (a 6 hores vista)
-    - Forecast 1, low altitude: it can be 'None'
-    - Forecast 1, high altitude
-    - Forecast 1, cloud polygon
-    - Forecast 2 (+6H), date
-    - Forecast 2, low altitude: it can be 'None'
-    - Forecast 2, high altitude
-    - Forecast 2, cloud polygon    
-    - Forecast 3 (+6H), date
-    - Forecast 3, low altitude: it can be 'None'
-    - Forecast 3, high altitude
-    - Forecast 3, cloud polygon
+    - Altitud més baixa del forecast 1
+    - ALtitud més alta del forecast 1
+    - Contorn del núvol de cendra del forecast 1
+    - Data pel primer forecast 2 (a 12 hores vista)
+    - Altitud més baixa del forecast 2
+    - ALtitud més alta del forecast 2
+    - Contorn del núvol de cendra del forecast 2
+    - Data pel primer forecast 3 (a 18 hores vista)
+    - Altitud més baixa del forecast 3
+    - ALtitud més alta del forecast 3
+    - Contorn del núvol de cendra del forecast 3
+    
+    Consideracions:
+    Aquest mètode retornarà una mostra si el VAA conté observació i és 
+    identificable des del satèl.lit; en altre cas, retornarà [].
+    Si algun dels paràmetres no es troben en el format esperat i per tant no és 
+    poden extreure, el seu valor serà NA. 
+    En el cas de les prediccions, es contempla el cas de que sigui que no 
+    s'espera cendra ("NO ASH EXPECTED"), i si falta informació pot ser que 
+    sigui perque simplement no hi ha, llavors els atributs seran 'None'  
 """
 import re
 

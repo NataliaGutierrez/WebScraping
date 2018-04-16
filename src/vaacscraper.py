@@ -11,18 +11,24 @@ import advisory
 
 class VAACScraper():
     """Documentation"""
-    def __init__(self, idate, edate, useragent="wswp"):
+    def __init__(self, idate, edate, volcanoes=[], useragent="wswp"):
         	# Inicialitzar parametres sobre webpage
-        	# Si no tenim etime com input, considerar data actual
         self.idate = idate
         self.edate = edate
-        self.domain = "http://www.ssd.noaa.gov"
-        self.url = self.domain + "/VAAC/messages.html"
+        self.domain = "http://www.ssd.noaa.gov/"
+        self.url = []
         self.useragent = useragent
+        # Robot parsed
         self.rp = urllib.robotparser.RobotFileParser()
-        self.rp.set_url(self.domain + "/robots.txt")
+        self.rp.set_url(self.domain + "robots.txt")
         self.rp.read()
+        
+        # Set list of volcanoes required. If is not any, all will be taken into
+        # account.
         self.volcanoes = []
+        for volcano in volcanoes:
+            self.volcanoes.append( volcano.lower() )
+            
         self.row_list=[]
     def __checking_useragent(self, url):
         return self.rp.can_fetch(self.useragent, url)
@@ -30,17 +36,20 @@ class VAACScraper():
     def __absolute_ref( self, relativelink ):
         # Starting by / character, it is relative to website
         if (relativelink[0] == '/'):
-            return self.domain + relativelink
+            return self.domain + relativelink[1:]
         # otherwise, it is relative to local root
         else:
             return os.path.dirname(self.url) + '/' + relativelink
         
     def __download_html(self, url, num_retries=2):
+        if not self.__checking_useragent(url):
+            print("WARNING: Blocked by robots.txt")
+            return []
         headers = {'User-agent': self.useragent}
         request = urllib.request.Request(url, headers=headers)
         try:
             html = urllib.request.urlopen(request).read()
-        except urllib.URLError as e:
+        except urllib.error.URLError as e:
             print('Download error:', e.reason)
             html = None
             if num_retries > 0:
@@ -63,6 +72,17 @@ class VAACScraper():
             return False
         return True
     
+    def __find_archive(self):
+        html = self.__download_html(self.domain)
+        if not html:
+            raise ValueError('Can not download main webpage')
+        
+        soup = BeautifulSoup(html, "lxml")
+        
+        token = soup.find(name='a',text="Volcano Information")
+        token = token.find_next(name='a',text="Advisories")
+        self.url = self.__absolute_ref(token.get('href'))
+            
     def __crawling_links(self, html):
         # En la pagina principal dels VAAC, hem de trobar els links pels anys que volem
         years=range(self.edate.year,self.idate.year-1,-1)
@@ -88,11 +108,12 @@ class VAACScraper():
         if datetime.utcnow().year == years[0]:
             # Search in special format
             html = self.__download_html(ylinks[0])
+            if not html:
+                raise ValueError("Can not download "+ylinks[0])
             soup = BeautifulSoup(html, "lxml")
             
             token = soup.find(name="strong", text=re.compile("^Advisories Last Updated"))
             
-            valid = False
             # Find term lists as siblings
             sectnodes = token.find_next_siblings("dt")
             # If there is any, html is in odd format. So the general loop will 
@@ -128,6 +149,9 @@ class VAACScraper():
             # No hace falta root, conseguirlo desde self.url que siempre estara actualizado.
             # POner update del self.url primera linea de download_html. 
             html = self.__download_html(ylinks[idx])
+            if not html:
+                raise ValueError("Can not download "+ylinks[idx])
+                
             soup = BeautifulSoup(html, "lxml")
             # Regular format, the data is in a table with columns(cells).
             tags = soup.find_all("table")
@@ -159,21 +183,33 @@ class VAACScraper():
         Scrape required information from single advisory webpage.
         Add the record in dataframe
         '''
-        #print(self.url\n)
-        #print(html)
         soup = BeautifulSoup(html,"lxml")
-        text = soup.find(name="pre").text
+        try:
+            text = soup.find(name="pre").text
+        except AttributeError as e:
+            print("WARNING: VAA FORMAT NOT RECOGNIZED IN '" + self.url + "'. VAA DISCARDED")
+            return
+
         row = advisory.parse( text, self.url )
         if (row):
             self.row_list.append(row)
             
     def scraping(self):
-        if self.__checking_useragent(self.url):
-            html = self.__download_html(self.url)
-            links = self.__crawling_links(html)
-            for link in links:
-                html = self.__download_html(link)
-                self.__scraping_advisory(html)
+        # Find where is VAA archive in website
+        self.__find_archive()
+        
+        # Get archive
+        html = self.__download_html(self.url)
+        if not html:
+            raise ValueError('Can not download archive webpage')
+            
+        links = self.__crawling_links(html)
+        for link in links:
+            html = self.__download_html(link)
+            if not html:
+                print("WARNING: Blocked for '" +link+ "'. VAA discarded")
+                continue
+            self.__scraping_advisory(html)
                 
         return self.row_list
     
