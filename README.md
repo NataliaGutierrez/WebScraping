@@ -12,3 +12,4 @@ La pràctica s'ha realitzat de manera individual per Natalia Gutiérrez.
 
 * src/main.py: exemple d'ús del scraper. És el que s'ha fet servir per generar el dataset inclòs aqui.
 * src/vaacscraper.py: conté la classe *VAACScraper*, que pot generar un fitxer csv amb la informació dels Volcanic Ash Advisories a partir de l'[arxiu del VAAC de Washington](http://www.ssd.noaa.gov/VAAC/archive.html) compresos en un interval de temps.
+* src/advisory.py: mòdul per extreure els camps requerits d'un VAA Advisory.
