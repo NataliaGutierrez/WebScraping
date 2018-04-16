@@ -1,3 +1,26 @@
+'''
+Aquest modul conte un scraper dels VAA publicats en la web oficial del VAAC de 
+Washington.
+La manera de fer-ho servir es en dos pasos:
+    - Cridar el constructor.
+        Els parametres requerits son:
+        idate: data a partir de la qual obtenir VAA
+        edate: data fins la qual obtenir VAA
+        Parametres opcionals:
+        volcanoes: llista de volcans dels que es vol tenir les dades. Si no hi
+            ha, es generara per tots del VAAC
+        filename: fitxer a on es guardara les dades. Si no hi ha, el dataframe 
+            es retorna com a sortida del scraping.
+        useragent: per fer-lo servir en el crawling. Per defecte, sera wswp
+    - Cridar scraping.
+
+Consideracions que s'han tingut en el scraper:
+    - Es comproba que el useragent no es bloquejat pel lloc web
+    - S'aplica un delay entre descarregues si esta marcat pel robots.txt
+    - Les dades es van volcant a disc a mesura que es recullen mostres per evitar
+      la seva perdua total si es produeix algun problema.
+    - En la descarrega es realitza reintents si es produeix un error de servidor.
+'''
 import urllib
 import urllib.robotparser
 from datetime import datetime
@@ -12,8 +35,8 @@ import advisory
 
 
 class VAACScraper():
-    """Documentation"""
-    def __init__(self, idate, edate, volcanoes=[], useragent="wswp"):
+    """Constructor"""
+    def __init__(self, idate, edate, volcanoes=[], filename=[], useragent="wswp"):
         	# Inicialitzar parametres sobre webpage
         self.idate = idate
         self.edate = edate
@@ -36,11 +59,20 @@ class VAACScraper():
         self.volcanoes = []
         for volcano in volcanoes:
             self.volcanoes.append( volcano.lower() )
-            
+        
+        # List of records
         self.row_list=[]
+        
+        # Number of records to proceed file writing
+        self.maxcount = 25
+        self.filecreated = False
+        self.filename = filename
+        
+    '''Mirar si el useragent es acceptat'''    
     def __checking_useragent(self, url):
         return self.rp.can_fetch(self.useragent, url)
     
+    ''' Construir path absolut '''
     def __absolute_ref( self, relativelink ):
         # Starting by / character, it is relative to website
         if (relativelink[0] == '/'):
@@ -49,6 +81,7 @@ class VAACScraper():
         else:
             return os.path.dirname(self.url) + '/' + relativelink
         
+    ''' Funcio per esperar si es necessari entre descarregues '''    
     def __wait(self):
         if self.crawl_delay == 0:
             return
@@ -62,7 +95,8 @@ class VAACScraper():
             time.sleep(sleep_secs)
         # update the last accessed time
         self.last_access = datetime.datetime.now()
-        
+    
+    ''' Descarrega del url '''
     def __download_html(self, url, num_retries=2):
         if not self.__checking_useragent(url):
             print("WARNING: Blocked by robots.txt")
@@ -85,18 +119,23 @@ class VAACScraper():
         self.url = url
         return html
     
+    ''' Comprobar si la seccio de VAA en la web es valida '''
     def __check_advisories_section( self, title ):
+        # in section, there is volcano name
         name = title.lower()
         
+        # If we have volcanoes list, check the current one
         if len(self.volcanoes)>0:
             for volcano in self.volcanoes:
                 if (volcano.lower() in name):
                     return True
             return False
+        # Sections not required (they are not about volcanoes)
         if ('user message' in name)|('test ' in name):
             return False
         return True
     
+    ''' Trobar el link per l'arxiu de VAA '''
     def __find_archive(self):
         html = self.__download_html(self.domain)
         if not html:
@@ -108,6 +147,7 @@ class VAACScraper():
         token = token.find_next(name='a',text="Advisories")
         self.url = self.__absolute_ref(token.get('href'))
             
+    ''' Recollir tots els links de VAA que ens interessa '''
     def __crawling_links(self, html):
         # En la pagina principal dels VAAC, hem de trobar els links pels anys que volem
         years=range(self.edate.year,self.idate.year-1,-1)
@@ -168,7 +208,6 @@ class VAACScraper():
                             break
                         
                         mylinks.append(self.__absolute_ref(sibling.find('a').get('href')))
-        # TODO: rediseñar
         # Crawling for rest of years
         for idx in range(fidx,len(ylinks),1):
             # No hace falta root, conseguirlo desde self.url que siempre estara actualizado.
@@ -203,6 +242,7 @@ class VAACScraper():
                              
         return mylinks
     
+    ''' Extreure les dades del VAA que hi ha en el html '''
     def __scraping_advisory(self,html):
         '''
         Scrape required information from single advisory webpage.
@@ -218,7 +258,23 @@ class VAACScraper():
         row = advisory.parse( text, self.url )
         if (row):
             self.row_list.append(row)
-            
+    
+    ''' Escriure a fitxer '''        
+    def __write_csv(self):
+        if not self.row_list:
+            if not self.filecreated:
+                print('WARNING: There is no record for volcano and/or dates provided. THERE IS NOT OUTPUT')
+            return
+        
+        data = pd.DataFrame(self.row_list,columns=advisory.fields())
+        if self.filecreated:
+            data.to_csv(self.filename,header=False,index=False,mode='a')
+        else:
+            data.to_csv(self.filename,index=False)
+            self.filecreated=True
+        self.row_list = []
+    
+    ''' Proces complet de scraping '''    
     def scraping(self):
         # Find where is VAA archive in website
         self.__find_archive()
@@ -227,23 +283,24 @@ class VAACScraper():
         html = self.__download_html(self.url)
         if not html:
             raise ValueError('Can not download archive webpage')
-            
+        
+        # Gather all the VAA links
         links = self.__crawling_links(html)
+        
+        # VAA loop
         for link in links:
             html = self.__download_html(link)
             if not html:
                 print("WARNING: Blocked for '" +link+ "'. VAA discarded")
                 continue
             self.__scraping_advisory(html)
-                
-        return self.row_list
+            
+            # Dump into disk
+            if len(self.row_list)==self.maxcount:
+                self.__write_csv()
+        # Dump the rest into disk
+        if self.filename:
+            self.__write_csv()
+        else: 
+            return pd.DataFrame(self.row_list,columns=advisory.fields())
     
-    def write_csv(self, filename):
-        if not self.row_list:
-            print('WARNING: There is no record for volcano and/or dates provided. THERE IS NOT OUTPUT')
-        data = pd.DataFrame(self.row_list,columns=advisory.fields())
-        # Escriure fitxer
-        data.to_csv(filename,index=False)
-        # for append, we need no save column names
-        #data.to_csv(filename,mode='a')
-        
